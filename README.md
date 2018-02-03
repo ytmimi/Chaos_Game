@@ -23,10 +23,12 @@ An Octagon, where the point moved 3/5 the distance to each randomly selected ver
 
 
 
-As things currently stand in order to change the shape of the polygon or rate of the point
-changes need to be made directly to the code. In order to change the shape, adjust the
-final argument for self.shape attribute in the Board class' __init__ method. similarly, to
-change the rate make adjustments to the self.scale attribute in the Board class' __init__
-method. After the menu is finished changes wont need to be hard coded.
+As things currently stand, in order to change the shape of the polygon or rate at which
+the point approaches each vertex, changes need to be made directly to the code. In order
+to change the shape, adjust the final argument for the self.shape attribute in the Board
+class' __init__ method to be any integer greater than 1. Similarly, to change the rate,
+make adjustments to the self.scale attribute in the Board class' __init__ method.
+self.scale should be a fraction, but feel free to experiment. After the menu is finished
+changes wont need to be hard coded.
 
 
