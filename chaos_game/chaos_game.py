@@ -50,11 +50,27 @@ class Chaos_Game(tk.Tk):
 		self.height = height
 		super().__init__()
 		self.title('Chaos Game')
+		
+		#board
 		self.board = Board(self, self.width, self.height)
-		self.board.pack(side=tk.LEFT)
-		self.menu = Menu(self, (1/4)*self.width, self.height)
-		self.menu.pack(side=tk.LEFT)
-		#mainloop that runs the progame
+		# self.board.pack(side=tk.LEFT)
+		self.board.grid(row=1, column=0)
+		#shape_menu
+		self.shape_menu = Shape_Menu(self, (1/4)*self.width, self.height)
+		# self.shape_menu.pack(side=tk.LEFT)
+		self.shape_menu.grid(row=1, column=1)
+
+
+		#add a menu
+		self.main_menu = Main_Menu(self)
+		self.config(menu=self.main_menu)
+
+		#add a toolbar
+		self.toolbar = Tool_Bar(self)
+		# self.toolbar.pack(side=tk.TOP)
+		self.toolbar.grid(row=0, column=0, columnspan=2, sticky=tk.E+tk.W)
+
+		#mainloop that runs the progame				
 		self.mainloop()
 
 
@@ -75,20 +91,87 @@ class Chaos_Game(tk.Tk):
 		sys.exit()
 
 
-	def get_color(self):
-		return self.menu.color_mnu.get_value()
+	def get_point_color(self):
+		return self.shape_menu.point_color_mnu.get_value()
 
-	def random_color(self):
-		return random.choice(self.menu.color_mnu.options[1:-1])
+	def random_point_color(self):
+		return random.choice(self.shape_menu.point_color_mnu.options[1:-1])
+
+	def get_line_color(self):
+		return self.shape_menu.line_color_mnu.get_value()
+
+	def random_line_color(self):
+		return random.choice(self.shape_menu.line_color_mnu.options)
 
 	def get_vertex(self):
-		return self.menu.vertex_input.get_value()
+		return self.shape_menu.vertex_input.get_value()
 
 	def get_rate(self):
-		return self.menu.rate_input.get_value()
+		return self.shape_menu.rate_input.get_value()
 
 	def get_point_size(self):
-		return self.menu.size_input.get_value()
+		return self.shape_menu.size_input.get_value()
+
+	def get_shape_radius(self):
+		return self.shape_menu.radius_input.get_value()
+
+	def show_shape_outline(self):
+		if self.board.shapes != []:
+			#add a way to change the color
+			l_color = self.get_line_color()
+			self.board.shapes[0].draw_shape(self.board, l_color)
+
+	def hide_shape_outline(self):
+		if self.board.shapes != []:
+			self.board.shapes[0].hide_shape(self.board)
+
+	def shape_checkbox(self):
+		self.shape_menu.show_line
+		return self.shape_menu.show_line.get() == 1
+		
+
+
+
+class Tool_Bar(tk.Frame):
+	def __init__(self, master):
+		self.master = master
+		super().__init__(master)
+		self.config(bd=5, relief=tk.GROOVE)
+		self.start_btn = tk.Button(self, text='Start', command= lambda: self.master.start())
+		self.start_btn.pack(side=tk.LEFT, padx=5,)
+		self.pause_unpause_btn = tk.Button(self, text='Pause/unpause', command= lambda: self.master.pause())
+		self.pause_unpause_btn.pack(side=tk.LEFT, padx=5,)
+		self.clear_btn = tk.Button(self, text='Clear', command = lambda: self.master.clear())
+		self.clear_btn.pack(side=tk.LEFT, padx=5,)
+		self.close_btn = tk.Button(self, text='Close', comman= lambda: self.master.close())
+		self.close_btn.pack(side=tk.LEFT, padx=5,)
+
+
+
+
+
+class Main_Menu(tk.Menu):
+	def __init__(self, master):
+		self.master = master
+		super().__init__(master)
+		self.file_menu = File_Menu(self, 'File')
+		self.add_cascade(label=self.file_menu.label, menu=self.file_menu)
+
+
+class File_Menu(tk.Menu):
+	def __init__(self, master, label):
+		self.master = master
+		self.root = self.master.master
+		self.label = label
+		super().__init__(master, tearoff=0)
+		#add things that the file menu can do:
+		self.add_command(label='New Shape...', command=self.print_hello)
+
+	def print_hello(self):
+		print('hello')
+
+
+
 
 
 class Board(tk.Canvas):
@@ -113,13 +196,18 @@ class Board(tk.Canvas):
 			vertexes = self.master.get_vertex()
 			#get the scale
 			scale = self.master.get_rate()
-			#get the color
-			color = self.master.get_color()
-			
+			#ge the radius of the figure
+			radius = self.master.get_shape_radius()
+			#get the point color
+			p_color = self.master.get_point_color()
+			#get the line color
+			l_color = self.master.get_line_color()
+
 			if vertexes >=3 and scale !=0 :
 				#draw the shape
-				shape = Geometric_Shape(self.center, (7/16)*self.width, vertexes, scale, color)
-				shape.draw_shape(self)
+				shape = Geometric_Shape(self.center, radius, vertexes, scale, p_color)
+				if self.master.shape_checkbox():
+					shape.draw_shape(self, l_color)
 				self.shapes.append(shape)
 				self.update()
 
@@ -164,7 +252,7 @@ class Board(tk.Canvas):
 			new_y = unit_vector[1]*scale + point[1]
 			#draw the new point
 			if self.shapes[0].color == 'rainbow':
-				color = self.master.random_color()
+				color = self.master.random_point_color()
 				self.draw_point((new_x, new_y), color, self.point_size)
 			else:
 				self.draw_point((new_x, new_y), self.shapes[0].color, self.point_size)
@@ -177,7 +265,7 @@ class Board(tk.Canvas):
 		y = event.y
 
 		if self.shapes != [] and self.shapes[0].within_figure((x,y)):
-			color = self.master.get_color()
+			color = self.master.get_point_color()
 			self.shapes[0].set_color(color)
 
 	def pause_unpause(self):
@@ -196,25 +284,45 @@ class Board(tk.Canvas):
 
 
 
-class Menu(tk.Canvas):
+class Shape_Menu(tk.Canvas):
 	def __init__(self, master, width, height):
 		self.master = master
 		self.width = width
 		self.height = height
+		self.show_line = tk.IntVar()
 		super().__init__(self.master, width=self.width, height=self.height)
 		self.config(bd=3, relief=tk.GROOVE)
-		self.start_btn = self.create_button((1/2)*self.width, self.height-175, 'Start', self.master.start,)
-		self.pause_btn = self.create_button((1/2)*self.width, self.height-125, 'Pause/Play', self.master.pause,)
-		self.clear_btn = self.create_button((1/2)*self.width, self.height-75, 'Clear', self.master.clear,)
-		self.close_btn = self.create_button((1/2)*self.width, self.height-25, 'Close', self.master.close)
+		# self.start_btn = self.create_button((1/2)*self.width, self.height-175, 'Start', self.master.start,)
+		# self.pause_btn = self.create_button((1/2)*self.width, self.height-125, 'Pause/Play', self.master.pause,)
+		# self.clear_btn = self.create_button((1/2)*self.width, self.height-75, 'Clear', self.master.clear,)
+		# self.close_btn = self.create_button((1/2)*self.width, self.height-25, 'Close', self.master.close)
+		#set the number of vertexes
 		self.vertex_lbl = self.create_label((1/2)*self.width, 25, 'Vertexes')
 		self.vertex_input = self.create_input_fld((1/2)*self.width, 50, 3)
-		self.rate_lbl = self.create_label((1/2)*self.width, 100, 'Scale')
-		self.rate_input = self.create_input_fld((1/2)*self.width, 125, .5)
+
+		#set the size of the shape
+		self.radius_lbl = self.create_label((1/2)*self.width, 75, 'Radius')
+		self.radius_input = self.create_input_fld((1/2)*self.width, 100, 150)
+
+		#set the scale of the moving point
+		self.rate_lbl = self.create_label((1/2)*self.width, 125, 'Scale')
+		self.rate_input = self.create_input_fld((1/2)*self.width, 150, .5)
+
+		#set the size of the point
 		self.size_lbl = self.create_label((1/2)*self.width, 175, 'Point Size')
 		self.size_input = self.create_input_fld((1/2)*self.width, 200, 1)
-		self.color_lbl = self.create_label((1/2)*self.width, 250, 'Point Color')
-		self.color_mnu = self.create_opt_mnu((1/2)*self.width, 275,'black', ['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown', 'rainbow'])
+
+		#set the color of the point
+		self.point_color_lbl = self.create_label((1/2)*self.width, 250, 'Point Color')
+		self.point_color_mnu = self.create_opt_mnu((1/2)*self.width, 275,'black', ['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown', 'rainbow'])
+		
+		#Set the line color and toggle the line visibility
+		self.line_color_lbl = self.create_label((1/2)*self.width,325, 'Line Color')
+		self.line_color_mnu = self.create_opt_mnu((1/2)*self.width,350,'black',['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown'] )
+
+		self.line_cbox = self.create_checkbox((1/2)*self.width,375, 'Show Line', self.toggle_shape_line)
+		# self.show_line_btn = self.create_button((1/2)*self.width,325, 'Show Outline', self.master.show_shape_outline)
+		# self.hide_line_btn = self.create_button((1/2)*self.width,325, 'Hide Outline', self.master.hide_shape_outline)
 
 
 	def create_button(self,x1, y1, text, func, *args):
@@ -238,6 +346,21 @@ class Menu(tk.Canvas):
 		input_fld.insert(0, default)
 		self.create_window(x1, y1, window=input_fld)
 		return input_fld
+
+
+	def create_checkbox(self, x1, y1, text, func, *args):
+		check_box = tk.Checkbutton(self, text="Show Line", variable=self.show_line, 
+			onvalue=1, offvalue=0, command=lambda: func(*args), state=tk.ACTIVE)
+		check_box.select()
+		self.create_window(x1, y1, window=check_box)
+		return check_box
+
+	def toggle_shape_line(self):
+		value = self.show_line.get()
+		if value == 1:
+			self.master.show_shape_outline()
+		elif value == 0:
+			self.master.hide_shape_outline()
 
 
 
@@ -345,13 +468,18 @@ class Geometric_Shape():
 				x1,y1 = point
 				x2,y2 = self.points[i+1]
 				if i ==0:
-					canvas.create_line(x1, y1, x2, y2, fill=fill)
+					line_id = canvas.create_line(x1, y1, x2, y2, fill=fill, tags='line')
 				else:
-					canvas.create_line(x1, y1, x2, y2, fill=fill)
+					line_id = canvas.create_line(x1, y1, x2, y2, fill=fill, tags='line')
 			else:
 				x1,y1 = point
 				x2,y2 = self.points[0]
-				canvas.create_line(x1, y1, x2, y2, fill=fill)
+				line_id = canvas.create_line(x1, y1, x2, y2, fill=fill, tags = 'line')
+
+
+	def hide_shape(self,canvas):
+		canvas.delete('line')
+
 
 	def random_vertex(self):
 		return random.choice(self.points)
