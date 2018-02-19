@@ -93,7 +93,6 @@ class Chaos_Game(tk.Tk):
 		board_y =  self.board.winfo_rooty()
 		board_width = self.board.winfo_width()
 		board_height = self.board.winfo_height()
-		
 		#for some reason the resolution on ImageGrab is 2X the resolution of my screen
 		image = ImageGrab.grab((2*board_x, 2*board_y, 2*(board_x+board_width), 2*(board_y+board_height)))
 		image.show()
@@ -209,9 +208,14 @@ class Board(tk.Canvas):
 		self.center = ((1/2)*self.width, (1/2)*self.height)
 		super().__init__(self.master, width=self.width, height=self.height)
 		self.shapes = []
-		self.bind('<Button-1>', self.click_set_color)
+		self.bind('<Button-2>', self.click_set_color)
+		self.bind('<Button-1>', self.board_info)
+		self.bind('<B1-Motion>', self.move_shape)
+		self.bind('<Double-Button-1>', self.select_shape)
 		self.pause = False
 		self.id = None
+		self.mouse_x = None
+		self.mouse_y = None
 
 	def create_shape(self, ):
 		'''
@@ -294,6 +298,30 @@ class Board(tk.Canvas):
 		if self.id != None:
 			self.after_cancel(self.id)
 		self.id = None
+
+	def board_info(self, event):
+		self.mouse_x = event.x
+		self.mouse_y = event.y
+		
+
+	def select_shape(self, event):
+		#double click event
+		print('hey')
+
+	def move_shape(self, event):
+		self.pause = True
+		x = event.x
+		y = event.y
+		point = (x,y)
+		dir_vector = direction_vector((self.mouse_x, self.mouse_y), point)
+		for shape in self.shapes:
+			if shape.within_figure(point):
+				shape.move_shape(self, dir_vector)
+		#set the new x and y mouse position
+		self.mouse_x = x
+		self.mouse_y = y
+
+
 
 
 
@@ -453,6 +481,7 @@ class Geometric_Shape():
 		self.point_color = point_color
 		self.point_size = point_size
 		self.dot_list = []
+		self.line_ids = []
 		
 
 	def get_points(self):
@@ -512,9 +541,12 @@ class Geometric_Shape():
 				x1,y1 = point
 				x2,y2 = self.points[0]
 				line_id = canvas.create_line(x1, y1, x2, y2, fill=fill, tags = 'line')
+			self.line_ids.append(line_id)
 
 
 	def hide_shape(self,canvas):
+		while len(self.line_ids) > 0:
+			self.line_ids.remove(self.line_ids[0])
 		canvas.delete('line')
 
 
@@ -612,6 +644,35 @@ class Geometric_Shape():
 		# #updates the current point
 		self.update_point(new_x, new_y)
 
+	#code to move the shape on the screen
+	def move_shape(self, canvas, offset):
+		#move the vertexes
+		for i, point in enumerate(self.points):
+			self.points[i] = (point[0]+ offset[0], point[1]+ offset[1])
+			
+
+		#move the lines:
+		for line in self.lines:
+			line.point1[0] = line.point1[0]+ offset[0]
+			line.point1[1] = line.point1[1]+ offset[1]
+			line.point2[0] = line.point2[0]+ offset[0]
+			line.point2[1] = line.point2[1]+ offset[1]
+
+		#move the starting point
+		self.starting_point = (self.starting_point[0] + offset[0], self.starting_point[1] + offset[1])
+
+		#move the lines on the screen
+		for id_ in self.line_ids:
+			canvas.move(id_, offset[0], offset[1])
+
+		#move the center point
+		self.center = (self.center[0] + offset[0], self.center[1] + offset[1])
+		
+		#move the dots
+		for dot in self.dot_list:
+			canvas.move(dot.dot, offset[0], offset[1])
+		
+		
 
 
 
@@ -626,7 +687,7 @@ class Dot():
 		'''
 		Draws the dot on the canvas
 		'''
-		canvas.create_oval(self.x-self.size, self.y-self.size, self.x+self.size, self.y+self.size, 
+		self.dot = canvas.create_oval(self.x-self.size, self.y-self.size, self.x+self.size, self.y+self.size, 
 							fill=self.color, outline=self.color, tags='dot')
 
 	#functions to rotate the dot
