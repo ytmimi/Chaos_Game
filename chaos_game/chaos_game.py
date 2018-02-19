@@ -4,6 +4,8 @@ import random
 import math
 from math import pi
 from collections import namedtuple
+from PIL import Image, ImageGrab
+
 
 def distance(point1, point2):
 	x1,y1 = point1
@@ -50,16 +52,14 @@ class Chaos_Game(tk.Tk):
 		self.height = height
 		super().__init__()
 		self.title('Chaos Game')
-		
 		#board
 		self.board = Board(self, self.width, self.height)
 		# self.board.pack(side=tk.LEFT)
-		self.board.grid(row=1, column=0)
+		self.board.grid(row=1, column=0, sticky=tk.E+tk.S+tk.N+tk.W)
 		#shape_menu
 		self.shape_menu = Shape_Menu(self, (1/4)*self.width, self.height)
 		# self.shape_menu.pack(side=tk.LEFT)
-		self.shape_menu.grid(row=1, column=1)
-
+		self.shape_menu.grid(row=1, column=1, sticky=tk.E+tk.N+tk.S)
 
 		#add a menu
 		self.main_menu = Main_Menu(self)
@@ -74,22 +74,41 @@ class Chaos_Game(tk.Tk):
 		self.mainloop()
 
 
-	def start(self):
-		if len(self.board.shapes) < 1:
-			self.board.point_size = self.get_point_size()
+	def new_shape(self):
 		self.board.create_shape()
-
-
+	
+	def start(self):
+		self.board.update()
+		
 	def pause(self):
 		self.board.pause_unpause()
 
 	def clear(self):
+		self.board.cancel_update()
 		self.board.remove_shape()
 		self.board.unpause()
+
+	def screen_shot(self):
+		board_x = self.board.winfo_rootx()
+		board_y =  self.board.winfo_rooty()
+		board_width = self.board.winfo_width()
+		board_height = self.board.winfo_height()
+		
+		#for some reason the resolution on ImageGrab is 2X the resolution of my screen
+		image = ImageGrab.grab((2*board_x, 2*board_y, 2*(board_x+board_width), 2*(board_y+board_height)))
+		image.show()
 
 	def close(self):
 		sys.exit()
 
+	def get_x(self):
+		return self.shape_menu.x_input.get_value()
+
+	def get_y(self):
+		return self.shape_menu.y_input.get_value()
+
+	def get_board_center(self):
+		return self.board.center
 
 	def get_point_color(self):
 		return self.shape_menu.point_color_mnu.get_value()
@@ -116,18 +135,23 @@ class Chaos_Game(tk.Tk):
 		return self.shape_menu.radius_input.get_value()
 
 	def show_shape_outline(self):
-		if self.board.shapes != []:
+		if len(self.board.shapes) >0:
 			#add a way to change the color
 			l_color = self.get_line_color()
-			self.board.shapes[0].draw_shape(self.board, l_color)
+			for shape in self.board.shapes:
+				shape.draw_shape(self.board, l_color)
 
 	def hide_shape_outline(self):
-		if self.board.shapes != []:
-			self.board.shapes[0].hide_shape(self.board)
+		if len(self.board.shapes) > 0:
+			for shape in self.board.shapes:
+				shape.hide_shape(self.board)
 
 	def shape_checkbox(self):
 		self.shape_menu.show_line
 		return self.shape_menu.show_line.get() == 1
+
+	def get_rotation(self):
+		return self.shape_menu.rotation_slider.get()
 		
 
 
@@ -137,12 +161,16 @@ class Tool_Bar(tk.Frame):
 		self.master = master
 		super().__init__(master)
 		self.config(bd=5, relief=tk.GROOVE)
+		self.new_shape_btn = tk.Button(self, text='New Shape', command= lambda: self.master.new_shape())
+		self.new_shape_btn.pack(side=tk.LEFT, padx=5,)
 		self.start_btn = tk.Button(self, text='Start', command= lambda: self.master.start())
 		self.start_btn.pack(side=tk.LEFT, padx=5,)
 		self.pause_unpause_btn = tk.Button(self, text='Pause/unpause', command= lambda: self.master.pause())
 		self.pause_unpause_btn.pack(side=tk.LEFT, padx=5,)
 		self.clear_btn = tk.Button(self, text='Clear', command = lambda: self.master.clear())
 		self.clear_btn.pack(side=tk.LEFT, padx=5,)
+		self.screen_shot_btn = tk.Button(self, text='Capture Image', command = lambda: self.master.screen_shot())
+		self.screen_shot_btn.pack(side=tk.LEFT, padx=5,)
 		self.close_btn = tk.Button(self, text='Close', comman= lambda: self.master.close())
 		self.close_btn.pack(side=tk.LEFT, padx=5,)
 
@@ -173,7 +201,6 @@ class File_Menu(tk.Menu):
 
 
 
-
 class Board(tk.Canvas):
 	def __init__(self, master, width, height):
 		self.master = master
@@ -184,38 +211,44 @@ class Board(tk.Canvas):
 		self.shapes = []
 		self.bind('<Button-1>', self.click_set_color)
 		self.pause = False
-		self.point_size = 1
-		
+		self.id = None
 
 	def create_shape(self, ):
 		'''
 		Creates the Geometric shape object, draws it, and then adds the shape to the shapes list
 		'''
-		if self.shapes == []:
-			#get the number of vertexes
-			vertexes = self.master.get_vertex()
-			#get the scale
-			scale = self.master.get_rate()
-			#ge the radius of the figure
-			radius = self.master.get_shape_radius()
-			#get the point color
-			p_color = self.master.get_point_color()
-			#get the line color
-			l_color = self.master.get_line_color()
+		# if self.shapes == []:
+		#get the x and y
+		x_val = self.master.get_x()
+		y_val = self.master.get_y()
+		#get the number of vertexes
+		vertexes = self.master.get_vertex()
+		#get the scale
+		scale = self.master.get_rate()
+		#ge the radius of the figure
+		radius = self.master.get_shape_radius()
+		#get the point color
+		p_color = self.master.get_point_color()
+		#get the point size
+		p_size = self.master.get_point_size()
+		#get the line color
+		l_color = self.master.get_line_color()
+		#get the rotation
+		rotation = self.master.get_rotation()
 
-			if vertexes >=3 and scale !=0 :
-				#draw the shape
-				shape = Geometric_Shape(self.center, radius, vertexes, scale, p_color)
-				if self.master.shape_checkbox():
-					shape.draw_shape(self, l_color)
-				self.shapes.append(shape)
-				self.update()
+		if vertexes >=3 and scale !=0 :
+			#draw the shape
+			shape = Geometric_Shape((x_val, y_val), radius, vertexes, scale, p_color, p_size, rotation)
+			if self.master.shape_checkbox():
+				shape.draw_shape(self, l_color)
+			self.shapes.append(shape)
 
 	def remove_shape(self):
 		'''
 		Removes the shape from the shapes list and clears the board
 		'''
-		self.shapes.remove(self.shapes[0])
+		while len(self.shapes) != 0:
+			self.shapes.remove(self.shapes[0])
 		self.delete("all")
 
 
@@ -230,47 +263,23 @@ class Board(tk.Canvas):
 		'''
 		Draw points randomly inside the triangle
 		'''
-		if (self.shapes != []) and (not self.pause):
-			#gets a ramdom vertex, the position of the point, and the scale from the shape
-			vertex = self.shapes[0].random_vertex()
-			point = self.shapes[0].starting_point
-			scale = self.shapes[0].scale
-
-			#find the direction vector between the two points
-			dir_vector = direction_vector(point, vertex)
-			
-			#finds the distance between the vertex and the current self.point 
-			#also known as magnitude
-			d = distance(point, vertex)
-			
-			#find the unit vector
-			unit_vector = (dir_vector[0]/d, dir_vector[1]/d)
-			
-			scale = d*scale
-			#set the new x and y coordinates
-			new_x = unit_vector[0]*scale + point[0]
-			new_y = unit_vector[1]*scale + point[1]
-			#draw the new point
-			if self.shapes[0].color == 'rainbow':
-				color = self.master.random_point_color()
-				self.draw_point((new_x, new_y), color, self.point_size)
-			else:
-				self.draw_point((new_x, new_y), self.shapes[0].color, self.point_size)
-			# #updates the current point
-			self.shapes[0].update_point(new_x, new_y)
-			self.id = self.master.after(50, self.update)
+		if (len(self.shapes) >0) and (not self.pause):
+			for shape in self.shapes:
+				shape.update(self)
+			self.id = self.master.after(100, self.update)
 
 	def click_set_color(self, event):
 		x = event.x
 		y = event.y
-
-		if self.shapes != [] and self.shapes[0].within_figure((x,y)):
-			color = self.master.get_point_color()
-			self.shapes[0].set_color(color)
+		if len(self.shapes) >0: 
+			for shape in self.shapes:
+				if shape.within_figure((x,y)):
+					color = self.master.get_point_color()
+					shape.set_color(color)
 
 	def pause_unpause(self):
 		'''Used to toggle between paused and unpaused'''
-		if self.shapes != []:
+		if len(self.shapes) >= 1:
 			if not self.pause:
 				self.pause = True
 			else:
@@ -281,6 +290,10 @@ class Board(tk.Canvas):
 		'''Used to reset the pause'''
 		self.pause = False
 
+	def cancel_update(self):
+		if self.id != None:
+			self.after_cancel(self.id)
+		self.id = None
 
 
 
@@ -296,33 +309,43 @@ class Shape_Menu(tk.Canvas):
 		# self.pause_btn = self.create_button((1/2)*self.width, self.height-125, 'Pause/Play', self.master.pause,)
 		# self.clear_btn = self.create_button((1/2)*self.width, self.height-75, 'Clear', self.master.clear,)
 		# self.close_btn = self.create_button((1/2)*self.width, self.height-25, 'Close', self.master.close)
+		#set the x and y positions
+		self.x_lbl = self.create_label((1/8)*self.width, 25, 'X:')
+		self.x_input = self.create_input_fld((5/8)*self.width, 25, self.master.get_board_center()[0])
+
+		self.y_lbl = self.create_label((1/8)*self.width, 75, 'Y:')
+		self.y_input = self.create_input_fld((5/8)*self.width, 75, self.master.get_board_center()[1])
+
 		#set the number of vertexes
-		self.vertex_lbl = self.create_label((1/2)*self.width, 25, 'Vertexes')
-		self.vertex_input = self.create_input_fld((1/2)*self.width, 50, 3)
+		self.vertex_lbl = self.create_label((1/2)*self.width, 100, 'Vertexes')
+		self.vertex_input = self.create_input_fld((1/2)*self.width, 125, 3)
 
 		#set the size of the shape
-		self.radius_lbl = self.create_label((1/2)*self.width, 75, 'Radius')
-		self.radius_input = self.create_input_fld((1/2)*self.width, 100, 150)
+		self.radius_lbl = self.create_label((1/2)*self.width, 150, 'Radius')
+		self.radius_input = self.create_input_fld((1/2)*self.width, 175, 150)
 
 		#set the scale of the moving point
-		self.rate_lbl = self.create_label((1/2)*self.width, 125, 'Scale')
-		self.rate_input = self.create_input_fld((1/2)*self.width, 150, .5)
+		self.rate_lbl = self.create_label((1/2)*self.width, 200, 'Scale')
+		self.rate_input = self.create_input_fld((1/2)*self.width, 225, .5)
 
 		#set the size of the point
-		self.size_lbl = self.create_label((1/2)*self.width, 175, 'Point Size')
-		self.size_input = self.create_input_fld((1/2)*self.width, 200, 1)
+		self.size_lbl = self.create_label((1/2)*self.width, 250, 'Point Size')
+		self.size_input = self.create_input_fld((1/2)*self.width, 275, 1)
 
 		#set the color of the point
-		self.point_color_lbl = self.create_label((1/2)*self.width, 250, 'Point Color')
-		self.point_color_mnu = self.create_opt_mnu((1/2)*self.width, 275,'black', ['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown', 'rainbow'])
+		self.point_color_lbl = self.create_label((1/2)*self.width, 300, 'Point Color')
+		self.point_color_mnu = self.create_opt_mnu((1/2)*self.width, 325,'black', ['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown', 'rainbow'])
 		
 		#Set the line color and toggle the line visibility
-		self.line_color_lbl = self.create_label((1/2)*self.width,325, 'Line Color')
-		self.line_color_mnu = self.create_opt_mnu((1/2)*self.width,350,'black',['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown'] )
+		self.line_color_lbl = self.create_label((1/2)*self.width,350, 'Line Color')
+		self.line_color_mnu = self.create_opt_mnu((1/2)*self.width,375,'black',['black', 'blue', 'red', 'green', 'orange', 'purple', 'yellow', 'brown'] )
 
-		self.line_cbox = self.create_checkbox((1/2)*self.width,375, 'Show Line', self.toggle_shape_line)
-		# self.show_line_btn = self.create_button((1/2)*self.width,325, 'Show Outline', self.master.show_shape_outline)
-		# self.hide_line_btn = self.create_button((1/2)*self.width,325, 'Hide Outline', self.master.hide_shape_outline)
+		#adds the checkbox for displaying the shapes line
+		self.line_cbox = self.create_checkbox((1/2)*self.width,400, 'Show Line', self.toggle_shape_line)
+		
+		#Sets the rotation slider
+		self.rotation_lbl = self.create_label((1/2)*self.width, 450, 'Rotation')
+		self.rotation_slider = self.create_slider((1/2)*self.width, 475, 0, 360 )
 
 
 	def create_button(self,x1, y1, text, func, *args):
@@ -362,6 +385,12 @@ class Shape_Menu(tk.Canvas):
 		elif value == 0:
 			self.master.hide_shape_outline()
 
+	def create_slider(self, x1, y1, min_, max_):
+		slider = tk.Scale(self, from_ = min_, to = max_ )
+		slider.config(orient=tk.HORIZONTAL)
+		self.create_window(x1, y1, window = slider)
+		return slider
+
 
 
 class Input_Feild(tk.Entry):
@@ -380,6 +409,9 @@ class Input_Feild(tk.Entry):
 		except Exception as e:
 			raise e
 		return val
+
+	def set_vale(self, val):
+		self.set(val)
 
 
 
@@ -408,16 +440,20 @@ class Geometric_Shape():
 	'''
 	Given the center point, radius, and vertexes a geometric shape is created
 	'''
-	def __init__(self, center, radius, vertexes, scale, color):
+	def __init__(self, center, radius, vertexes, scale, point_color, point_size, rotation=0):
 		self.center = center
 		self.radius = radius
 		self.vertexes = vertexes
 		self.angle = 2*pi/self.vertexes
+		self.rotation = math.radians(rotation)
 		self.points = self.get_points()
 		self.lines = self.get_lines()
 		self.starting_point = self.starting_point()
 		self.scale = scale
-		self.color = color
+		self.point_color = point_color
+		self.point_size = point_size
+		self.dot_list = []
+		
 
 	def get_points(self):
 		points = []
@@ -426,13 +462,14 @@ class Geometric_Shape():
 			if self.vertexes%2 == 0:
 				if self.vertexes == 4:
 					#the angle is rotated by 45 degrees
-					curr_angle = (i)*self.angle - math.radians(45)
+					curr_angle = (i)*self.angle - math.radians(45) + self.rotation
 				else:
 					#the angle is not rotated
-					curr_angle = (i)*self.angle
+					curr_angle = (i)*self.angle + self.rotation
 			else:
 				#the angle is rotated by 90 degrees
-				curr_angle = (i)*self.angle - math.radians(90)
+				curr_angle = (i)*self.angle - math.radians(90) + self.rotation
+
 			#the x value given the angle + the center offset
 			x = (math.cos(curr_angle)*self.radius) + self.center[0]
 			#the y value given the angle + the center offset 
@@ -532,7 +569,72 @@ class Geometric_Shape():
 			return False
 
 	def set_color(self, color):
+		self.point_color = color
+
+
+	def create_dot(self, canvas, color):
+		dot = Dot(self.starting_point[0], self.starting_point[1], self.point_size, color)	
+		if dot not in self.dot_list:
+			dot.draw_dot(canvas)
+			self.dot_list.append(dot)
+
+	def update(self, canvas):
+		'''
+		Draw points randomly inside the figure
+		'''
+		#gets a ramdom vertex, the position of the point, and the scale from the shape
+		vertex = self.random_vertex()
+		point = self.starting_point
+		scale = self.scale
+
+		#find the direction vector between the two points
+		dir_vector = direction_vector(point, vertex)
+		
+		#finds the distance between the vertex and the current self.point 
+		#also known as magnitude
+		d = distance(point, vertex)
+		
+		#find the unit vector
+		unit_vector = (dir_vector[0]/d, dir_vector[1]/d)
+		
+		scale = d*scale
+		#set the new x and y coordinates
+		new_x = unit_vector[0]*scale + point[0]
+		new_y = unit_vector[1]*scale + point[1]
+		#draw the new point
+		if self.point_color == 'rainbow':
+			color = canvas.master.random_point_color()
+			self.create_dot(canvas, color)
+			# self.draw_point((new_x, new_y), color, self.point_size)
+		else:
+			self.create_dot(canvas, self.point_color)
+			# self.draw_point((new_x, new_y), shape.color, self.point_size)
+		# #updates the current point
+		self.update_point(new_x, new_y)
+
+
+
+
+class Dot():
+	def __init__(self, x, y, size, color):
+		self.x = x
+		self.y = y
+		self.size = size
 		self.color = color
+
+	def draw_dot(self, canvas):
+		'''
+		Draws the dot on the canvas
+		'''
+		canvas.create_oval(self.x-self.size, self.y-self.size, self.x+self.size, self.y+self.size, 
+							fill=self.color, outline=self.color, tags='dot')
+
+	#functions to rotate the dot
+	def rotate_dot(self):
+		pass
+
+class Image_Capture():
+	pass
 
 
 
